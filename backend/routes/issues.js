@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const { auth, requireRole } = require('../middleware/auth');
+const { notifyStatusChange, notifyGovNewIssue } = require('../sms');
 
 // GET /api/issues — public list, filterable
 router.get('/', (req, res) => {
@@ -55,6 +56,12 @@ router.post('/', auth, (req, res) => {
   db.prepare(`INSERT INTO issues (id,citizen_id,title,category,description,parish,address,lat,lng,priority,photo_data)
     VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
     .run(id, req.user.id, title, category, description||null, parish, address||null, lat||null, lng||null, priority||'medium', photo_data||null);
+
+  // Notify gov users in this parish for high/critical issues (non-blocking)
+  const newIssue = { id, title, category, parish, address, priority };
+  const govPhones = db.prepare("SELECT phone FROM users WHERE role='gov_user' AND parish=? AND phone IS NOT NULL AND active=1").all(parish).map(u => u.phone);
+  notifyGovNewIssue(newIssue, govPhones).catch(() => {});
+
   res.status(201).json({ id });
 });
 
@@ -69,6 +76,12 @@ router.patch('/:id/status', auth, requireRole('gov_user','admin'), (req, res) =>
     .run(status, assigned_agency||issue.assigned_agency, req.params.id);
   db.prepare('INSERT INTO issue_updates (id,issue_id,updated_by,old_status,new_status,note) VALUES (?,?,?,?,?,?)')
     .run(uuidv4(), req.params.id, req.user.id, issue.status, status, note||null);
+
+  // SMS citizen about status change (non-blocking)
+  const reporter = db.prepare('SELECT phone FROM users WHERE id=?').get(issue.citizen_id);
+  const issueWithPhone = { ...issue, reporter_phone: reporter?.phone };
+  notifyStatusChange(issueWithPhone, status, note).catch(() => {});
+
   res.json({ success: true });
 });
 

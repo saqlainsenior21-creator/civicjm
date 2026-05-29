@@ -11,6 +11,23 @@ const db = new Database(path.join(DATA_DIR, 'civicjm.db'));
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+// Migrate: backfill assigned_agency for any existing issues that don't have one
+try {
+  const { autoRoute } = require('./routing');
+  const unrouted = db.prepare("SELECT id, category, parish FROM issues WHERE assigned_agency IS NULL").all();
+  if (unrouted.length > 0) {
+    const update = db.prepare("UPDATE issues SET assigned_agency=? WHERE id=?");
+    const backfill = db.transaction(() => {
+      for (const issue of unrouted) {
+        const agency = autoRoute(issue.category, issue.parish);
+        if (agency) update.run(agency, issue.id);
+      }
+    });
+    backfill();
+    console.log(`✅ Backfilled assigned_agency for ${unrouted.length} existing issues`);
+  }
+} catch (e) { /* routing module not yet available on first load — safe to ignore */ }
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,

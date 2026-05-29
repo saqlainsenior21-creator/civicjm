@@ -3,6 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const { auth, requireRole } = require('../middleware/auth');
 const { notifyStatusChange, notifyGovNewIssue } = require('../sms');
+const { autoRoute } = require('../routing');
 
 // GET /api/issues — public list, filterable
 router.get('/', (req, res) => {
@@ -53,16 +54,20 @@ router.post('/', auth, (req, res) => {
   const validCats = ['broken_road','garbage','water_outage','streetlight','illegal_dumping','flooding','other'];
   if (!validCats.includes(category)) return res.status(400).json({ error: 'Invalid category' });
   const id = uuidv4();
-  db.prepare(`INSERT INTO issues (id,citizen_id,title,category,description,parish,address,lat,lng,priority,photo_data)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
-    .run(id, req.user.id, title, category, description||null, parish, address||null, lat||null, lng||null, priority||'medium', photo_data||null);
+  const assigned_agency = autoRoute(category, parish);
 
-  // Notify gov users in this parish for high/critical issues (non-blocking)
-  const newIssue = { id, title, category, parish, address, priority };
-  const govPhones = db.prepare("SELECT phone FROM users WHERE role='gov_user' AND parish=? AND phone IS NOT NULL AND active=1").all(parish).map(u => u.phone);
+  db.prepare(`INSERT INTO issues (id,citizen_id,title,category,description,parish,address,lat,lng,priority,photo_data,assigned_agency)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(id, req.user.id, title, category, description||null, parish, address||null, lat||null, lng||null, priority||'medium', photo_data||null, assigned_agency||null);
+
+  // Notify gov users of the assigned agency for high/critical issues (non-blocking)
+  const newIssue = { id, title, category, parish, address, priority, assigned_agency };
+  const govPhones = assigned_agency
+    ? db.prepare("SELECT phone FROM users WHERE role='gov_user' AND agency=? AND phone IS NOT NULL AND active=1").all(assigned_agency).map(u => u.phone)
+    : db.prepare("SELECT phone FROM users WHERE role='gov_user' AND parish=? AND phone IS NOT NULL AND active=1").all(parish).map(u => u.phone);
   notifyGovNewIssue(newIssue, govPhones).catch(() => {});
 
-  res.status(201).json({ id });
+  res.status(201).json({ id, assigned_agency });
 });
 
 // PATCH /api/issues/:id/status — gov/admin update status

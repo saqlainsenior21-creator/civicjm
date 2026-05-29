@@ -34,18 +34,28 @@ app.use('/api/admin',  auth, requireRole('admin'), require('./routes/admin'));
 // Gov dashboard
 app.get('/api/gov/dashboard', auth, requireRole('gov_user','admin'), (req, res) => {
   const db = require('./db');
-  const parish = req.user.parish;
-  const base = parish && req.user.role === 'gov_user' ? `WHERE i.parish='${parish}'` : '';
-  const issues = db.prepare(`SELECT i.*, u.name as reporter_name FROM issues i JOIN users u ON i.citizen_id=u.id ${base} ORDER BY CASE i.priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, i.created_at DESC LIMIT 200`).all();
+  const { autoRoute, NWA_CATEGORIES } = require('./routing');
+  const agency = req.user.agency;
+  let whereClause = '';
+  if (req.user.role === 'gov_user' && agency) {
+    // Scope to issues assigned to this agency
+    whereClause = `WHERE i.assigned_agency=?`;
+  }
+  const params = req.user.role === 'gov_user' && agency ? [agency] : [];
+  const issues = db.prepare(
+    `SELECT i.*, u.name as reporter_name FROM issues i JOIN users u ON i.citizen_id=u.id
+     ${whereClause}
+     ORDER BY CASE i.priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, i.created_at DESC LIMIT 200`
+  ).all(...params);
   const stats = {
     total: issues.length,
-    submitted:   issues.filter(i => i.status==='submitted').length,
-    acknowledged:issues.filter(i => i.status==='acknowledged').length,
-    inProgress:  issues.filter(i => i.status==='in_progress').length,
-    resolved:    issues.filter(i => i.status==='resolved').length,
-    critical:    issues.filter(i => i.priority==='critical' && !['resolved','closed'].includes(i.status)).length,
+    submitted:    issues.filter(i => i.status==='submitted').length,
+    acknowledged: issues.filter(i => i.status==='acknowledged').length,
+    inProgress:   issues.filter(i => i.status==='in_progress').length,
+    resolved:     issues.filter(i => i.status==='resolved').length,
+    critical:     issues.filter(i => i.priority==='critical' && !['resolved','closed'].includes(i.status)).length,
   };
-  res.json({ stats, issues, parish, agency: req.user.agency });
+  res.json({ stats, issues, parish: req.user.parish, agency });
 });
 
 // Health

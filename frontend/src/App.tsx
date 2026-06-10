@@ -10,6 +10,7 @@ import PublicMap from './pages/PublicMap'
 import IssueDetail from './pages/IssueDetail'
 import GovDashboard from './pages/GovDashboard'
 import AdminDashboard from './pages/AdminDashboard'
+import Partner from './pages/Partner'
 
 function ProtectedRoute({ children, roles }: { children: any, roles?: string[] }) {
   const { user, loading } = useAuth()
@@ -29,6 +30,7 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/map" element={<PublicMap />} />
+            <Route path="/partner" element={<Partner />} />
             <Route path="/issues/:id" element={<IssueDetail />} />
             <Route path="/report" element={<ProtectedRoute><ReportIssue /></ProtectedRoute>} />
             <Route path="/my-reports" element={<ProtectedRoute><MyReports /></ProtectedRoute>} />

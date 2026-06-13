@@ -8,14 +8,14 @@ const { auth } = require('../middleware/auth');
 const SECRET = process.env.JWT_SECRET || 'civicjm-dev-secret';
 
 router.post('/register', (req, res) => {
-  const { name, email, password, role, parish, phone } = req.body;
+  const { name, email, password, parish, phone } = req.body;
   if (!name || !email || !password) return res.status(400).json({ error: 'Name, email and password required' });
-  if (role && !['citizen','gov_user'].includes(role)) return res.status(400).json({ error: 'Invalid role' });
   const exists = db.prepare('SELECT id FROM users WHERE email=?').get(email.toLowerCase());
   if (exists) return res.status(409).json({ error: 'Email already registered' });
   const id = uuidv4();
   const hash = bcrypt.hashSync(password, 10);
-  const userRole = role || 'citizen';
+  // Public registration always creates citizens. gov_user / admin must be promoted by an existing admin.
+  const userRole = 'citizen';
   db.prepare('INSERT INTO users (id,name,email,password,role,parish,phone) VALUES (?,?,?,?,?,?,?)')
     .run(id, name, email.toLowerCase(), hash, userRole, parish || null, phone || null);
   const token = jwt.sign({ id, name, email: email.toLowerCase(), role: userRole, parish }, SECRET, { expiresIn: '8h' });

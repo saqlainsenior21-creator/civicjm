@@ -20,12 +20,8 @@ export default function Layout() {
   return (
     <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column' }}>
       <nav style={{ background:'#fff', borderBottom:'1px solid #e5e7eb', padding:'0 24px', display:'flex', alignItems:'center', justifyContent:'space-between', height:60, position:'sticky', top:0, zIndex:100 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:12, cursor:'pointer' }} onClick={() => navigate('/')}>
-          <span style={{ fontSize:24 }}>🏛️</span>
-          <div>
-            <div style={{ fontWeight:800, fontSize:17, color:B, lineHeight:1 }}>CivicJM</div>
-            <div style={{ fontSize:10, color:'#9ca3af', lineHeight:1 }}>Jamaica Community Reporting</div>
-          </div>
+        <div style={{ cursor:'pointer' }} onClick={() => navigate('/')}>
+          <img src="/logo.svg" alt="CivicJM" height={44} style={{ display:'block' }} />
         </div>
 
         <div style={{ display:'flex', gap:4, alignItems:'center' }}>
